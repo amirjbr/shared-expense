@@ -1,4 +1,5 @@
 
+# Go
 /bin/
 *.exe
 *.test
@@ -22,4 +23,3 @@ dist/
 
 # Go mod cache (optional)
 vendor/
-EOF
