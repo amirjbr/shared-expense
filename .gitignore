@@ -1,0 +1,25 @@
+
+/bin/
+*.exe
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
+
+# Env
+.env
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Build
+dist/
+
+# Go mod cache (optional)
+vendor/
+EOF
