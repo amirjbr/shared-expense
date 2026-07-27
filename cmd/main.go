@@ -6,6 +6,7 @@ import (
 
 	"github.com/amirjbr/shared-expense/config"
 	"github.com/amirjbr/shared-expense/internal/platform/database"
+	"github.com/amirjbr/shared-expense/pkg/migrator"
 	"github.com/joho/godotenv"
 )
 
@@ -19,12 +20,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(conf)
 
 	db, err := database.InitDB(*conf)
 	if err != nil {
 		fmt.Println(err)
 	}
-	fmt.Println(db)
+
+	mig := migrator.NewMigrator(db, "postgres")
+	mig.Up()
 
 }
