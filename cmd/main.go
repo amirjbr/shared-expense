@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/amirjbr/shared-expense/config"
-	"github.com/joho/godotenv"
 	"log"
+
+	"github.com/amirjbr/shared-expense/config"
+	"github.com/amirjbr/shared-expense/internal/platform/database"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -18,4 +20,11 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println(conf)
+
+	db, err := database.InitDB(*conf)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(db)
+
 }
