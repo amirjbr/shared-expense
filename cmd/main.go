@@ -6,6 +6,7 @@ import (
 
 	"github.com/amirjbr/shared-expense/config"
 	"github.com/amirjbr/shared-expense/internal/platform/database"
+	"github.com/amirjbr/shared-expense/pkg/logger"
 	"github.com/amirjbr/shared-expense/pkg/migrator"
 	"github.com/joho/godotenv"
 )
@@ -20,6 +21,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	loggger := logger.NewLogger()
+
+	fmt.Println(loggger)
 
 	db, err := database.InitDB(*conf)
 	if err != nil {
