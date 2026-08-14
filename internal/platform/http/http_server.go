@@ -33,6 +33,7 @@ func (a *App) RunAndListen() {
 	h := handler.NewUserHandler(a.UserSvc)
 	routes := a.Server.Group("/api/share_expense")
 	routes.POST("/register", h.RegisterHandler)
+	routes.POST("/login", h.LoginHandler)
 
 	err := a.Server.Run("localhost:8080")
 	if err != nil {

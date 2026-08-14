@@ -65,8 +65,24 @@ func (s *UserService) GetUserByID(ctx context.Context, id string) (entity.User, 
 	}
 	return s.repo.GetUserByID(ctx, id)
 }
-func (s *UserService) GetUserByUsername(ctx context.Context, username string) (entity.User, error) {
-	return s.repo.GetUserByUsername(ctx, username)
+func (s *UserService) GetUserByUsername(ctx context.Context, loginReq dto.UserLoginRequest) (entity.User, error) {
+	if loginReq.Username == "" {
+		return entity.User{}, errors.New("username is required")
+	}
+	if loginReq.Password == "" {
+		return entity.User{}, errors.New("password is required")
+	}
+
+	user, err := s.repo.GetUserByUsername(ctx, loginReq.Username)
+	if err != nil {
+		return entity.User{}, err
+	}
+	loginPasswordReq := HashPassword(loginReq.Password)
+	if user.Password != loginPasswordReq {
+		return entity.User{}, errors.New("invalid password")
+	}
+	return user, nil
+
 }
 func (s *UserService) UpdateUser(ctx context.Context, user entity.User) error {
 	return s.repo.UpdateUser(ctx, user)
