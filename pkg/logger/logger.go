@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// TODO find best practice for logger and make it better in this application
 type MyLogger interface {
 	Info(msg string, args ...any)
 	Error(msg string, args ...any)
