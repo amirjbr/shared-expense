@@ -9,6 +9,7 @@ import (
 	"github.com/amirjbr/shared-expense/internal/account/core/service"
 	"github.com/amirjbr/shared-expense/internal/platform/database"
 	"github.com/amirjbr/shared-expense/internal/platform/http"
+	"github.com/amirjbr/shared-expense/pkg/conv"
 	"github.com/amirjbr/shared-expense/pkg/logger"
 	"github.com/amirjbr/shared-expense/pkg/migrator"
 	"github.com/joho/godotenv"
@@ -26,8 +27,6 @@ func main() {
 	}
 	loggger := logger.NewLogger()
 
-	fmt.Println(loggger)
-
 	db, err := database.InitDB(*conf)
 	if err != nil {
 		fmt.Println(err)
@@ -41,7 +40,7 @@ func main() {
 		fmt.Println(err)
 	}
 
-	userSvc, err := service.NewUserService(repo, loggger)
+	userSvc, err := service.NewUserService(repo, conv.ToBytes(conf.JwtSecret), loggger, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
 	if err != nil {
 		fmt.Println(err)
 	}
