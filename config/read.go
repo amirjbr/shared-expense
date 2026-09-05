@@ -19,7 +19,7 @@ func LoadConfig() (*Config, error) {
 	//TODO : read from yaml then read from env
 	if err = k.Load(env.Provider("MYVAR_", ".", func(s string) string {
 		return strings.Replace(strings.ToLower(
-			strings.TrimPrefix(s, "MYVAR_")), "_", ".", -1)
+			strings.TrimPrefix(s, "MYVAR_")), "__", ".", -1)
 	}), nil); err != nil {
 		return nil, err
 	}

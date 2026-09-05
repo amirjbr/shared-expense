@@ -1,44 +1,33 @@
 package http
 
 import (
-	"log"
-
-	"github.com/amirjbr/shared-expense/config"
-	"github.com/amirjbr/shared-expense/internal/account/app/handler"
-	"github.com/amirjbr/shared-expense/internal/account/core/service"
-	"github.com/amirjbr/shared-expense/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
-type App struct {
-	Server  *gin.Engine
-	Config  config.Config
-	Logger  logger.MyLogger
-	UserSvc *service.UserService
+type RouteRegistrar interface {
+	RegisterRoutes(group *gin.RouterGroup)
 }
 
-func NewApp(config config.Config, logger logger.MyLogger, userSvc *service.UserService) *App {
-	var a App
-	a.Config = config
-	a.UserSvc = userSvc
-	a.Logger = logger
-	a.Server = gin.Default()
-	return &a
+type Server struct {
+	engine *gin.Engine
+	addr   string
 }
 
-func (a *App) RunAndListen() {
-
-	// TODO initial handlers here and initial routes then run the server
-	a.Server = gin.Default()
-	h := handler.NewUserHandler(a.UserSvc)
-	routes := a.Server.Group("/api/share_expense")
-	routes.POST("/register", h.RegisterHandler)
-	routes.POST("/login", h.LoginHandler)
-
-	err := a.Server.Run("localhost:8080")
-	if err != nil {
-		log.Fatal(err)
-		return
+func NewServer(Addr string) *Server {
+	engine := gin.Default()
+	return &Server{
+		engine: engine,
+		addr:   Addr,
 	}
+}
 
+func (s *Server) Register(prefix string, routers ...RouteRegistrar) {
+	group := s.engine.Group(prefix)
+	for _, router := range routers {
+		router.RegisterRoutes(group)
+	}
+}
+
+func (s *Server) Run() error {
+	return s.engine.Run(s.addr)
 }

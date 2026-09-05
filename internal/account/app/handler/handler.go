@@ -8,17 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Handler struct {
+type UserHandler struct {
 	userSvc *service.UserService
 }
 
-func NewUserHandler(userSvc *service.UserService) *Handler {
-	return &Handler{
+func NewUserHandler(userSvc *service.UserService) *UserHandler {
+	return &UserHandler{
 		userSvc: userSvc,
 	}
 }
 
-func (h *Handler) RegisterHandler(c *gin.Context) {
+func (h *UserHandler) RegisterHandler(c *gin.Context) {
 	var registerReq dto.UserRegisterRequest
 	err := c.BindJSON(&registerReq)
 	if err != nil {
@@ -32,7 +32,7 @@ func (h *Handler) RegisterHandler(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"id": createdId})
 }
-func (h *Handler) LoginHandler(c *gin.Context) {
+func (h *UserHandler) LoginHandler(c *gin.Context) {
 	var loginReq dto.UserLoginRequest
 	err := c.BindJSON(&loginReq)
 	if err != nil {

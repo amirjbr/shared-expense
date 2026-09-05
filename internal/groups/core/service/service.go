@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/amirjbr/shared-expense/internal/groups/app/dto"
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
@@ -47,6 +48,9 @@ func (s *GroupService) CreateGroup(ctx context.Context, request dto.CreateGroupR
 		return "", err
 	}
 	group.ID = uuidCreated
+
+	group.CreatedAt = time.Now()
+	group.UpdatedAt = time.Now()
 
 	return s.repo.CreateGroup(ctx, group)
 }

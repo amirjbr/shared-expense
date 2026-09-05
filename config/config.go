@@ -1,9 +1,9 @@
 package config
 
 type Config struct {
-	DB        DBConfig
-	JwtSecret string
-	Auth      Auth
+	DB        DBConfig `koanf:"db"`
+	JwtSecret string   `koanf:"jwt_secret"`
+	Auth      Auth     `koanf:"auth"`
 }
 
 type DBConfig struct {

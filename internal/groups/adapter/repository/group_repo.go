@@ -30,7 +30,7 @@ func (r *GroupRepo) CreateGroup(ctx context.Context, group entity.Group) (string
 	queryGroup := `INSERT INTO groups(id,name,owner_user_id,created_at,updated_at) 
 				VALUES ($1 , $2 ,$3 ,$4,$5)`
 
-	queryGroupMember := `INSERT INTO group_member(group_id,user_id,joined_at)
+	queryGroupMember := `INSERT INTO group_members(group_id,user_id,joined_at)
 				VALUES ($1, $2, $3)`
 
 	_, err = tx.ExecContext(ctx, queryGroup, group.ID, group.Name, group.OwnerID,

@@ -18,8 +18,8 @@ func ParseToken(tokenString string, secret []byte) (*UserClaims, error) {
 	token, err := jwt2.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt2.Token) (interface{}, error) {
 		return secret, nil
 	})
-	if token == nil {
-		return nil, errors.New("token contains an invalid token")
+	if token == nil || !token.Valid {
+		return nil, errors.New("token is invalid")
 	}
 	var claims *UserClaims
 	claims, ok := token.Claims.(*UserClaims)
