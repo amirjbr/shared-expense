@@ -20,4 +20,7 @@ func NewGroupRoutes(handler *handler.GroupHandler) *GroupRoutes {
 func (r *GroupRoutes) RegisterRoutes(group *gin.RouterGroup) {
 	group.Use(middlewares.AuthMiddleware(conv.ToBytes("my_secret")))
 	group.POST("/groups", r.handler.CreateNewGroupHandler)
+	group.POST("/groups/:group_id/invitations", r.handler.InviteMemberToGroup)
+	group.POST("/invitations/:invitation_id/accept", r.handler.AcceptInvitation)
+	group.POST("/invitations/:invitation_id/reject", r.handler.RejectInvitation)
 }

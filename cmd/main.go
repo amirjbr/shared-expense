@@ -5,14 +5,14 @@ import (
 	"log"
 
 	"github.com/amirjbr/shared-expense/config"
-	"github.com/amirjbr/shared-expense/internal/account/adapter/repository"
-	"github.com/amirjbr/shared-expense/internal/account/app/handler"
-	"github.com/amirjbr/shared-expense/internal/account/app/routes"
-	"github.com/amirjbr/shared-expense/internal/account/core/service"
-	repository2 "github.com/amirjbr/shared-expense/internal/groups/adapter/repository"
-	handler2 "github.com/amirjbr/shared-expense/internal/groups/app/handler"
-	routes2 "github.com/amirjbr/shared-expense/internal/groups/app/routes"
-	service2 "github.com/amirjbr/shared-expense/internal/groups/core/service"
+	UserRepo "github.com/amirjbr/shared-expense/internal/account/adapter/repository"
+	UserHandlers "github.com/amirjbr/shared-expense/internal/account/app/handler"
+	UserRoutes "github.com/amirjbr/shared-expense/internal/account/app/routes"
+	UserService "github.com/amirjbr/shared-expense/internal/account/core/service"
+	GroupRepo "github.com/amirjbr/shared-expense/internal/groups/adapter/repository"
+	GroupHandlers "github.com/amirjbr/shared-expense/internal/groups/app/handler"
+	GroupRoutes "github.com/amirjbr/shared-expense/internal/groups/app/routes"
+	GroupService "github.com/amirjbr/shared-expense/internal/groups/core/service"
 	"github.com/amirjbr/shared-expense/internal/platform/database"
 	"github.com/amirjbr/shared-expense/internal/platform/http"
 	"github.com/amirjbr/shared-expense/pkg/conv"
@@ -41,27 +41,30 @@ func main() {
 	mig := migrator.NewMigrator(db, "postgres")
 	mig.Up()
 
-	userRepo, err := repository.NewUserRepo(db)
+	userRepo, err := UserRepo.NewUserRepo(db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	userSvc, err := service.NewUserService(userRepo, conv.ToBytes(conf.JwtSecret), loggger, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
+	userSvc, err := UserService.NewUserService(userRepo, conv.ToBytes(conf.JwtSecret), loggger, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
 	if err != nil {
 		fmt.Println(err)
 	}
-	userHandler := handler.NewUserHandler(userSvc)
-	userRoutes := routes.NewUserRoutes(userHandler)
-
-	groupRepo, err := repository2.NewGroupRepo(db)
+	userHandler := UserHandlers.NewUserHandler(userSvc)
+	userRoutes := UserRoutes.NewUserRoutes(userHandler)
+	userLookUpSvc, err := UserService.NewUserLookUp(userRepo)
 	if err != nil {
 		fmt.Println(err)
 	}
-	groupSvc, err := service2.NewGroupService(groupRepo, loggger)
-	groupHandler := handler2.NewGroupHandler(groupSvc)
-	groupRoutes := routes2.NewGroupRoutes(groupHandler)
+	groupRep, err := GroupRepo.NewGroupRepo(db)
+	if err != nil {
+		fmt.Println(err)
+	}
+	groupSvc, err := GroupService.NewGroupService(groupRep, userLookUpSvc, loggger)
+	groupHandler := GroupHandlers.NewGroupHandler(groupSvc)
+	groupRoute := GroupRoutes.NewGroupRoutes(groupHandler)
 
 	server := http.NewServer("localhost:8080")
-	server.Register("api/v1/share_expense", userRoutes, groupRoutes)
+	server.Register("api/v1/share_expense", userRoutes, groupRoute)
 
 	if err = server.Run(); err != nil {
 		log.Fatal(err)

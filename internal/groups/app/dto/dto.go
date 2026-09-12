@@ -5,6 +5,6 @@ type CreateGroupRequest struct {
 	OwnerID string `json:"owner_id"`
 }
 
-type CreateGroupRequestWithoutID struct {
-	Name string `json:"name"`
+type GroupInvitationRequest struct {
+	Username string `json:"username""`
 }

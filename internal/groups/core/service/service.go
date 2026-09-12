@@ -12,12 +12,19 @@ import (
 	"github.com/google/uuid"
 )
 
-type GroupService struct {
-	repo   port.GroupRepo
-	logger logger.MyLogger
+type CreateInvitationCommand struct {
+	Username        string
+	GroupID         uuid.UUID
+	InvitedByUserID uuid.UUID
 }
 
-func NewGroupService(repo port.GroupRepo, logger logger.MyLogger) (*GroupService, error) {
+type GroupService struct {
+	repo       port.GroupRepo
+	logger     logger.MyLogger
+	userFinder port.UserFinder
+}
+
+func NewGroupService(repo port.GroupRepo, userFinder port.UserFinder, logger logger.MyLogger) (*GroupService, error) {
 	if repo == nil {
 		return nil, errors.New("repo is nil")
 	}
@@ -26,8 +33,9 @@ func NewGroupService(repo port.GroupRepo, logger logger.MyLogger) (*GroupService
 	}
 
 	return &GroupService{
-		repo:   repo,
-		logger: logger,
+		repo:       repo,
+		logger:     logger,
+		userFinder: userFinder,
 	}, nil
 
 }
@@ -54,3 +62,72 @@ func (s *GroupService) CreateGroup(ctx context.Context, request dto.CreateGroupR
 
 	return s.repo.CreateGroup(ctx, group)
 }
+
+func (s *GroupService) InviteMemberToGroup(ctx context.Context, groupInvitationCommand CreateInvitationCommand) error {
+	var groupInvitation entity.GroupInvitation
+	result, err := s.repo.GetGroupByID(ctx, groupInvitationCommand.GroupID.String())
+	if err == nil && result == nil {
+		return errors.New("group not found")
+	}
+	if err != nil {
+		return err
+	}
+
+	if result.OwnerID != groupInvitationCommand.InvitedByUserID {
+		return errors.New("the user is not the owner of the group")
+	}
+
+	invitedUserId, err := s.userFinder.GetUserIDByUsername(ctx, groupInvitationCommand.Username)
+	if err != nil {
+		return err
+	}
+
+	isMember, err := s.repo.IsGroupMember(ctx, groupInvitationCommand.GroupID.String(), invitedUserId)
+	if err != nil {
+		return err
+	}
+	if isMember {
+		return errors.New("user is already a member of the group")
+	}
+
+	groupInvitation.ID = uuid.New()
+	groupInvitation.CreatedAt = time.Now()
+
+	parseResult, err := uuid.Parse(invitedUserId)
+	if err != nil {
+		return err
+	}
+
+	//TODO for sure need to fix naming of the variables
+
+	groupInvitation.InvitedUserID = parseResult
+
+	groupInvitation.InvitedByUserID = groupInvitationCommand.InvitedByUserID
+
+	groupInvitation.Status = "pending"
+
+	groupInvitation.GroupID = groupInvitationCommand.GroupID
+
+	isHaveInvitation, err := s.repo.IsHaveInvitation(ctx, groupInvitation.InvitedUserID.String(), groupInvitation.GroupID.String())
+	if err != nil {
+		return err
+	}
+	if isHaveInvitation {
+		return errors.New("the invitation already exist for this group and user")
+	}
+
+	return s.repo.CreateGroupInvitation(ctx, groupInvitation)
+
+}
+
+func (s *GroupService) AcceptInvitation(ctx context.Context, invitationID string, userID string) error {
+	// TODO complete the service and repo layer also reject in handler and also need refactoring accept handler
+
+	return s.repo.AcceptInvitation(ctx, invitationID, userID)
+}
+
+func (s *GroupService) RejectInvitation(ctx context.Context, invitationID string, userID string) error {
+	return s.repo.RejectInvitation(ctx, invitationID, userID)
+}
+
+//TODO now we need to write the code for accept and reject the invitation and change the status to accepted or rejected
