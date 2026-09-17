@@ -122,6 +122,7 @@ func (r *GroupHandler) RejectInvitation(c *gin.Context) {
 			"error":   err.Error(),
 			"message": "invalid user id on jwt",
 		})
+		return
 	}
 
 	err = r.service.RejectInvitation(c, invitationID.String(), userID.String())
@@ -133,4 +134,21 @@ func (r *GroupHandler) RejectInvitation(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "user reject invitation request was successfully"})
 
+}
+func (r *GroupHandler) GetGroupInformation(c *gin.Context) {
+	groupID, err := uuid.Parse(c.Param("group_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   err.Error(),
+			"message": "invalid group id",
+		})
+		return
+	}
+
+	group, err := r.service.GetGroupByID(c, groupID.String())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"group": group})
 }

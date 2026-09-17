@@ -23,4 +23,5 @@ func (r *GroupRoutes) RegisterRoutes(group *gin.RouterGroup) {
 	group.POST("/groups/:group_id/invitations", r.handler.InviteMemberToGroup)
 	group.POST("/invitations/:invitation_id/accept", r.handler.AcceptInvitation)
 	group.POST("/invitations/:invitation_id/reject", r.handler.RejectInvitation)
+	group.GET("/groups/:group_id", r.handler.GetGroupInformation)
 }

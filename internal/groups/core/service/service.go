@@ -130,4 +130,10 @@ func (s *GroupService) RejectInvitation(ctx context.Context, invitationID string
 	return s.repo.RejectInvitation(ctx, invitationID, userID)
 }
 
-//TODO now we need to write the code for accept and reject the invitation and change the status to accepted or rejected
+func (s *GroupService) GetGroupByID(ctx context.Context, groupID string) (*entity.Group, error) {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	return group, nil
+}
