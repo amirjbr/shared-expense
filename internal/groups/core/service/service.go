@@ -130,7 +130,25 @@ func (s *GroupService) RejectInvitation(ctx context.Context, invitationID string
 	return s.repo.RejectInvitation(ctx, invitationID, userID)
 }
 
-func (s *GroupService) GetGroupByID(ctx context.Context, groupID string) (*entity.Group, error) {
+// This function will return all the groups the authenticated user is the member of
+func (s *GroupService) GetGroupByID(ctx context.Context, groupID string, userID string) (*entity.Group, error) {
+
+	if userID == "" {
+		return nil, errors.New("invalid user.userID is empty")
+	}
+
+	if groupID == "" {
+		return nil, errors.New("invalid group. groupID is empty")
+	}
+
+	isGroupMember, err := s.repo.IsGroupMember(ctx, groupID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isGroupMember {
+		return nil, errors.New("user is not a member of the group")
+	}
+
 	group, err := s.repo.GetGroupByID(ctx, groupID)
 	if err != nil {
 		return nil, err

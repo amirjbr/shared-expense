@@ -145,7 +145,16 @@ func (r *GroupHandler) GetGroupInformation(c *gin.Context) {
 		return
 	}
 
-	group, err := r.service.GetGroupByID(c, groupID.String())
+	userID, err := uuid.Parse(c.Keys["user_id"].(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   err.Error(),
+			"message": "invalid user id on jwt",
+		})
+		return
+	}
+
+	group, err := r.service.GetGroupByID(c, groupID.String(), userID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
