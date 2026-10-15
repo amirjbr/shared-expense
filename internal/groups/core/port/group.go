@@ -14,6 +14,8 @@ type GroupRepo interface {
 	IsHaveInvitation(ctx context.Context, invitedUserID string, groupID string) (bool, error)
 	AcceptInvitation(ctx context.Context, InvitationID string, userID string) error
 	RejectInvitation(ctx context.Context, InvitationID string, userID string) error
+	GetPendingInvitations(ctx context.Context, userID string) ([]entity.GroupInvitation, error)
+	GetAllGroupsOfUser(ctx context.Context, userID string) ([]entity.Group, error)
 }
 
 type UserFinder interface {

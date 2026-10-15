@@ -208,3 +208,55 @@ func (r *GroupRepo) RejectInvitation(ctx context.Context, invitationID string, u
 	return nil
 
 }
+
+func (r *GroupRepo) GetPendingInvitations(ctx context.Context, groupID string) ([]entity.GroupInvitation, error) {
+	query := `SELECT * FROM group_invitations WHERE invited_user_id = $1 AND status='pending';`
+
+	var groupInvitationsResult []entity.GroupInvitation
+
+	rows, err := r.DB.QueryContext(ctx, query, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var groupInvitation entity.GroupInvitation
+
+		err = rows.Scan(&groupInvitation.ID, &groupInvitation.GroupID,
+			&groupInvitation.InvitedUserID, &groupInvitation.InvitedByUserID,
+			&groupInvitation.Status, &groupInvitation.CreatedAt, &groupInvitation.RespondedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		groupInvitationsResult = append(groupInvitationsResult, groupInvitation)
+
+	}
+
+	return groupInvitationsResult, nil
+}
+
+func (r *GroupRepo) GetAllGroupsOfUser(ctx context.Context, userID string) ([]entity.Group, error) {
+	query := `SELECT id,name,owner_user_id,created_at FROM groups 
+			JOIN group_members ON group_members.group_id = groups.id 
+			WHERE user_id = $1`
+
+	var groups []entity.Group
+
+	rows, err := r.DB.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var group entity.Group
+
+		err = rows.Scan(&group.ID, &group.Name, &group.OwnerID, &group.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, group)
+	}
+
+	return groups, nil
+}

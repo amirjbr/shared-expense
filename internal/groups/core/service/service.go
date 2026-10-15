@@ -155,3 +155,20 @@ func (s *GroupService) GetGroupByID(ctx context.Context, groupID string, userID 
 	}
 	return group, nil
 }
+
+func (s *GroupService) GetPendingInvitations(ctx context.Context, userID string) ([]entity.GroupInvitation, error) {
+	if userID == "" {
+		return nil, errors.New("invalid user . userID is empty")
+	}
+
+	return s.repo.GetPendingInvitations(ctx, userID)
+
+}
+
+func (s *GroupService) GetAllGroupsOfUser(ctx context.Context, userID string) ([]entity.Group, error) {
+	if userID == "" {
+		return nil, errors.New("invalid user . userID is empty")
+	}
+
+	return s.repo.GetAllGroupsOfUser(ctx, userID)
+}

@@ -161,3 +161,42 @@ func (r *GroupHandler) GetGroupInformation(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"group": group})
 }
+
+func (r *GroupHandler) GetPendingInvitationOfUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Keys["user_id"].(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   err.Error(),
+			"message": "invalid user id on jwt",
+		})
+		return
+	}
+
+	result, err := r.service.GetPendingInvitations(c, userID.String())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"result": result,
+	})
+}
+
+func (r *GroupHandler) GetGroupsOfAuthenticatedUser(c *gin.Context) {
+	userID, err := uuid.Parse(c.Keys["user_id"].(string))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   err.Error(),
+			"message": "invalid user id on jwt",
+		})
+		return
+	}
+
+	groups, err := r.service.GetAllGroupsOfUser(c, userID.String())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"groups": groups})
+}
