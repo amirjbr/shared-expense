@@ -3,6 +3,7 @@ package port
 import (
 	"context"
 
+	"github.com/amirjbr/shared-expense/internal/account/core/service"
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
 )
 
@@ -16,8 +17,10 @@ type GroupRepo interface {
 	RejectInvitation(ctx context.Context, InvitationID string, userID string) error
 	GetPendingInvitations(ctx context.Context, userID string) ([]entity.GroupInvitation, error)
 	GetAllGroupsOfUser(ctx context.Context, userID string) ([]entity.Group, error)
+	GetMembersOfGroup(ctx context.Context, groupID string) ([]string, error)
 }
 
 type UserFinder interface {
 	GetUserIDByUsername(ctx context.Context, username string) (string, error)
+	GetUsersByIDs(ctx context.Context, ids []string) ([]service.UserSummary, error)
 }

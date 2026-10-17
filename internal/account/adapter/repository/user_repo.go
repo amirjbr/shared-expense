@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/amirjbr/shared-expense/internal/account/core/entity"
+	"github.com/lib/pq"
 )
 
 type UserRepo struct {
@@ -72,4 +73,41 @@ func (r *UserRepo) UpdateUser(ctx context.Context, user entity.User) error {
                  phonenumber = $6, updated_at = $7 where id = $8;`
 	fmt.Println(query)
 	return nil
+}
+
+func (r *UserRepo) GetUsersByIDs(ctx context.Context, ids []string) ([]entity.User, error) {
+	query := `SELECT * from users where id = ANY($1::uuid[])`
+	rows, err := r.DB.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := make([]entity.User, 0, len(ids))
+
+	for rows.Next() {
+		var user entity.User
+
+		err := rows.Scan(
+			&user.ID,
+			&user.Username,
+			&user.FirstName,
+			&user.LastName,
+			&user.Email,
+			&user.PhoneNumber,
+			&user.Password,
+			&user.CreatedAt,
+			&user.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		users = append(users, user)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
 }

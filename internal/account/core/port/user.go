@@ -11,4 +11,5 @@ type UserRepo interface {
 	GetUserByID(ctx context.Context, id string) (entity.User, error)
 	GetUserByUsername(ctx context.Context, username string) (entity.User, error)
 	UpdateUser(ctx context.Context, user entity.User) error
+	GetUsersByIDs(ctx context.Context, ids []string) ([]entity.User, error)
 }

@@ -26,4 +26,5 @@ func (r *GroupRoutes) RegisterRoutes(group *gin.RouterGroup) {
 	group.GET("/groups/:group_id", r.handler.GetGroupInformation)
 	group.GET("/groups/invitations", r.handler.GetPendingInvitationOfUser)
 	group.GET("/groups", r.handler.GetGroupsOfAuthenticatedUser)
+	group.GET("/groups/:group_id/members", r.handler.GetMembersOfGroup)
 }

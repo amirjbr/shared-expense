@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
 	"github.com/google/uuid"
@@ -259,4 +260,32 @@ func (r *GroupRepo) GetAllGroupsOfUser(ctx context.Context, userID string) ([]en
 	}
 
 	return groups, nil
+}
+
+func (r *GroupRepo) GetMembersOfGroup(ctx context.Context, groupID string) ([]string, error) {
+	query := `SELECT user_id FROM group_members WHERE group_id = $1`
+	var listOfUserIDs []string
+
+	rows, err := r.DB.QueryContext(ctx, query, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var userID uuid.UUID
+		err = rows.Scan(&userID)
+		if err != nil {
+			return nil, err
+		}
+
+		listOfUserIDs = append(listOfUserIDs, userID.String())
+
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterating group members: %w", err)
+	}
+
+	return listOfUserIDs, nil
+
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/amirjbr/shared-expense/internal/account/core/service"
 	"github.com/amirjbr/shared-expense/internal/groups/app/dto"
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
 	"github.com/amirjbr/shared-expense/internal/groups/core/port"
@@ -171,4 +172,32 @@ func (s *GroupService) GetAllGroupsOfUser(ctx context.Context, userID string) ([
 	}
 
 	return s.repo.GetAllGroupsOfUser(ctx, userID)
+}
+
+func (s *GroupService) GetMembersOfGroup(ctx context.Context, userID string, groupID string) ([]service.UserSummary, error) {
+	if userID == "" {
+		return nil, errors.New("invalid user . userID is empty")
+	}
+	if groupID == "" {
+		return nil, errors.New("invalid group. groupID is empty")
+	}
+
+	isMember, err := s.repo.IsGroupMember(ctx, groupID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isMember {
+		return nil, errors.New("user is not a member of the group")
+	}
+
+	listOfUserIDs, err := s.repo.GetMembersOfGroup(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.userFinder.GetUsersByIDs(ctx, listOfUserIDs)
+
+	// Call the identity service and ask user information from it
+
 }
