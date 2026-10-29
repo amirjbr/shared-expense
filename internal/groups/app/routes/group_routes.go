@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"log/slog"
+
 	"github.com/amirjbr/shared-expense/internal/groups/app/handler"
 	"github.com/amirjbr/shared-expense/internal/platform/http/middlewares"
 	"github.com/amirjbr/shared-expense/pkg/conv"
@@ -9,15 +11,20 @@ import (
 
 type GroupRoutes struct {
 	handler *handler.GroupHandler
+	logger  *slog.Logger
 }
 
-func NewGroupRoutes(handler *handler.GroupHandler) *GroupRoutes {
+func NewGroupRoutes(handler *handler.GroupHandler, logger *slog.Logger) *GroupRoutes {
 	return &GroupRoutes{
 		handler: handler,
+		logger:  logger,
 	}
 }
 
 func (r *GroupRoutes) RegisterRoutes(group *gin.RouterGroup) {
+	group.Use(middlewares.RequestIDMiddleware())
+	group.Use(middlewares.RequestLoggerMiddleware(r.logger))
+	//TODO find  how to pass the secret to auth middleware
 	group.Use(middlewares.AuthMiddleware(conv.ToBytes("my_secret")))
 	group.POST("/groups", r.handler.CreateNewGroupHandler)
 	group.POST("/groups/:group_id/invitations", r.handler.InviteMemberToGroup)

@@ -33,7 +33,7 @@ func (r *GroupHandler) CreateNewGroupHandler(c *gin.Context) {
 
 	createGroupReq.OwnerID = c.Keys["user_id"].(string)
 
-	id, err := r.service.CreateGroup(c, createGroupReq)
+	id, err := r.service.CreateGroup(c.Request.Context(), createGroupReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -69,7 +69,7 @@ func (r *GroupHandler) InviteMemberToGroup(c *gin.Context) {
 		return
 	}
 
-	err = r.service.InviteMemberToGroup(c, groupInvitationCommand)
+	err = r.service.InviteMemberToGroup(c.Request.Context(), groupInvitationCommand)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -96,7 +96,7 @@ func (r *GroupHandler) AcceptInvitation(c *gin.Context) {
 		})
 		return
 	}
-	err = r.service.AcceptInvitation(c, invitationID.String(), userID.String())
+	err = r.service.AcceptInvitation(c.Request.Context(), invitationID.String(), userID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -125,7 +125,7 @@ func (r *GroupHandler) RejectInvitation(c *gin.Context) {
 		return
 	}
 
-	err = r.service.RejectInvitation(c, invitationID.String(), userID.String())
+	err = r.service.RejectInvitation(c.Request.Context(), invitationID.String(), userID.String())
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -154,7 +154,7 @@ func (r *GroupHandler) GetGroupInformation(c *gin.Context) {
 		return
 	}
 
-	group, err := r.service.GetGroupByID(c, groupID.String(), userID.String())
+	group, err := r.service.GetGroupByID(c.Request.Context(), groupID.String(), userID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -172,7 +172,7 @@ func (r *GroupHandler) GetPendingInvitationOfUser(c *gin.Context) {
 		return
 	}
 
-	result, err := r.service.GetPendingInvitations(c, userID.String())
+	result, err := r.service.GetPendingInvitations(c.Request.Context(), userID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -193,7 +193,7 @@ func (r *GroupHandler) GetGroupsOfAuthenticatedUser(c *gin.Context) {
 		return
 	}
 
-	groups, err := r.service.GetAllGroupsOfUser(c, userID.String())
+	groups, err := r.service.GetAllGroupsOfUser(c.Request.Context(), userID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -218,7 +218,7 @@ func (r *GroupHandler) GetMembersOfGroup(c *gin.Context) {
 		})
 		return
 	}
-	result, err := r.service.GetMembersOfGroup(c, userID.String(), groupID.String())
+	result, err := r.service.GetMembersOfGroup(c.Request.Context(), userID.String(), groupID.String())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}

@@ -3,13 +3,15 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/amirjbr/shared-expense/internal/account/core/service"
 	"github.com/amirjbr/shared-expense/internal/groups/app/dto"
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
 	"github.com/amirjbr/shared-expense/internal/groups/core/port"
-	"github.com/amirjbr/shared-expense/pkg/logger"
+	"github.com/amirjbr/shared-expense/pkg/requestcontext"
 	"github.com/google/uuid"
 )
 
@@ -21,11 +23,11 @@ type CreateInvitationCommand struct {
 
 type GroupService struct {
 	repo       port.GroupRepo
-	logger     logger.MyLogger
+	logger     *slog.Logger
 	userFinder port.UserFinder
 }
 
-func NewGroupService(repo port.GroupRepo, userFinder port.UserFinder, logger logger.MyLogger) (*GroupService, error) {
+func NewGroupService(repo port.GroupRepo, userFinder port.UserFinder, logger *slog.Logger) (*GroupService, error) {
 	if repo == nil {
 		return nil, errors.New("repo is nil")
 	}
@@ -43,6 +45,10 @@ func NewGroupService(repo port.GroupRepo, userFinder port.UserFinder, logger log
 
 func (s *GroupService) CreateGroup(ctx context.Context, request dto.CreateGroupRequest) (string, error) {
 	var group entity.Group
+	id, ok := requestcontext.GetRequestIDFromContext(ctx)
+	if !ok {
+		s.logger.Warn("Could not get request id from context in create group request")
+	}
 
 	group.Name = request.Name
 

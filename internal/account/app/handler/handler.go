@@ -25,7 +25,7 @@ func (h *UserHandler) RegisterHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	createdId, err := h.userSvc.Register(c, registerReq)
+	createdId, err := h.userSvc.Register(c.Request.Context(), registerReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}
@@ -39,7 +39,7 @@ func (h *UserHandler) LoginHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 
-	user, err := h.userSvc.Login(c, loginReq)
+	user, err := h.userSvc.Login(c.Request.Context(), loginReq)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}

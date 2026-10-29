@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/amirjbr/shared-expense/internal/account/core/port"
 	"github.com/google/uuid"
@@ -17,13 +18,14 @@ type UserSummary struct {
 
 type UserLookUp struct {
 	userRepo port.UserRepo
+	logger   *slog.Logger
 }
 
-func NewUserLookUp(userRepo port.UserRepo) (*UserLookUp, error) {
+func NewUserLookUp(userRepo port.UserRepo, logger *slog.Logger) (*UserLookUp, error) {
 	if userRepo == nil {
 		return nil, errors.New("userRepo is nil")
 	}
-	return &UserLookUp{userRepo: userRepo}, nil
+	return &UserLookUp{userRepo: userRepo, logger: logger}, nil
 }
 
 func (s *UserLookUp) GetUserIDByUsername(ctx context.Context, username string) (string, error) {

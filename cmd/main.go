@@ -21,6 +21,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// TODO separate technical erros with bussines errors
 func main() {
 	err := godotenv.Load("./.env")
 	if err != nil {
@@ -31,7 +32,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	loggger := logger.NewLogger()
+	logg := logger.New()
 
 	db, err := database.InitDB(*conf)
 	if err != nil {
@@ -41,27 +42,31 @@ func main() {
 	mig := migrator.NewMigrator(db, "postgres")
 	mig.Up()
 
+	// user module
 	userRepo, err := UserRepo.NewUserRepo(db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	userSvc, err := UserService.NewUserService(userRepo, conv.ToBytes(conf.JwtSecret), loggger, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
+	userSvc, err := UserService.NewUserService(userRepo, conv.ToBytes(conf.JwtSecret), logg, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
 	if err != nil {
 		fmt.Println(err)
 	}
 	userHandler := UserHandlers.NewUserHandler(userSvc)
-	userRoutes := UserRoutes.NewUserRoutes(userHandler)
-	userLookUpSvc, err := UserService.NewUserLookUp(userRepo)
+	userRoutes := UserRoutes.NewUserRoutes(userHandler, logg)
+	userLookUpSvc, err := UserService.NewUserLookUp(userRepo, logg)
 	if err != nil {
 		fmt.Println(err)
 	}
+
+	//group module
+
 	groupRep, err := GroupRepo.NewGroupRepo(db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	groupSvc, err := GroupService.NewGroupService(groupRep, userLookUpSvc, loggger)
+	groupSvc, err := GroupService.NewGroupService(groupRep, userLookUpSvc, logg)
 	groupHandler := GroupHandlers.NewGroupHandler(groupSvc)
-	groupRoute := GroupRoutes.NewGroupRoutes(groupHandler)
+	groupRoute := GroupRoutes.NewGroupRoutes(groupHandler, logg)
 
 	server := http.NewServer("localhost:8080")
 	server.Register("api/v1/share_expense", userRoutes, groupRoute)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/amirjbr/shared-expense/internal/account/app/dto"
@@ -10,7 +11,6 @@ import (
 	"github.com/amirjbr/shared-expense/internal/account/core/port"
 	"github.com/amirjbr/shared-expense/internal/account/utils"
 	"github.com/amirjbr/shared-expense/pkg/jwt"
-	"github.com/amirjbr/shared-expense/pkg/logger"
 	jwt2 "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -19,13 +19,13 @@ import (
 
 type UserService struct {
 	repo                   port.UserRepo
-	logger                 logger.MyLogger
+	logger                 *slog.Logger
 	jwtSecret              []byte
 	tokenExpiration        uint
 	refreshTokenExpiration uint
 }
 
-func NewUserService(repo port.UserRepo, secret []byte, logger logger.MyLogger, tokenExpiration, refreshTokenExpiration uint) (*UserService, error) {
+func NewUserService(repo port.UserRepo, secret []byte, logger *slog.Logger, tokenExpiration, refreshTokenExpiration uint) (*UserService, error) {
 	if logger == nil {
 		return nil, errors.New("logger is required")
 	}
@@ -49,7 +49,6 @@ func (s *UserService) Register(ctx context.Context, userReq dto.UserRegisterRequ
 	var user entity.User
 
 	user.Username = userReq.Username
-
 	err := utils.ValidatePasswordWithFeedback(userReq.Password)
 	if err != nil {
 		return "", err

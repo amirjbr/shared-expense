@@ -78,7 +78,7 @@ func (r *GroupRepo) GetGroupByID(ctx context.Context, groupID string) (*entity.G
 		return nil, err
 	}
 	return group, nil
-
+	errors.new
 }
 
 func (r *GroupRepo) IsGroupMember(ctx context.Context, groupID string, userID string) (bool, error) {
