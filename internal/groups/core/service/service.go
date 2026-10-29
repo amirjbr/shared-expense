@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"github.com/amirjbr/shared-expense/internal/groups/app/dto"
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
 	"github.com/amirjbr/shared-expense/internal/groups/core/port"
-	"github.com/amirjbr/shared-expense/pkg/requestcontext"
 	"github.com/google/uuid"
 )
 
@@ -45,10 +43,12 @@ func NewGroupService(repo port.GroupRepo, userFinder port.UserFinder, logger *sl
 
 func (s *GroupService) CreateGroup(ctx context.Context, request dto.CreateGroupRequest) (string, error) {
 	var group entity.Group
-	id, ok := requestcontext.GetRequestIDFromContext(ctx)
-	if !ok {
-		s.logger.Warn("Could not get request id from context in create group request")
-	}
+
+	//TODO add logger use case in service and repo layer
+	//id, ok := requestcontext.GetRequestIDFromContext(ctx)
+	//if !ok {
+	//	s.logger.Warn("Could not get request id from context in create group request")
+	//}
 
 	group.Name = request.Name
 
