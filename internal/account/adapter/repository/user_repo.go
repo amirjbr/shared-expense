@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/amirjbr/shared-expense/internal/account/core/entity"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -15,98 +16,314 @@ type UserRepo struct {
 }
 
 func NewUserRepo(db *sql.DB) (*UserRepo, error) {
+
 	if db == nil {
 		return nil, errors.New("db is nil")
 	}
+
 	return &UserRepo{
 		DB: db,
 	}, nil
 }
 
-func (r *UserRepo) CreateUser(ctx context.Context, user entity.User) (string, error) {
-	query := `INSERT INTO users(id,first_name,last_name,username,password,
-                  				email,phone_number,created_at,updated_at)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8,$9);`
+// ---------------------------------------------------------
+// Create User
+// ---------------------------------------------------------
 
-	result, err := r.DB.ExecContext(ctx, query, user.ID, user.FirstName, user.LastName, user.Username,
-		user.Password, user.Email, user.PhoneNumber, user.CreatedAt, user.UpdatedAt)
+func (r *UserRepo) CreateUser(ctx context.Context, user entity.User) error {
 
+	const query = `
+		INSERT INTO users (
+			id,
+			first_name,
+			last_name,
+			username,
+			password,
+			email,
+			phone_number,
+			created_at,
+			updated_at
+		)
+		VALUES (
+			$1, $2, $3, $4, $5,
+			$6, $7, $8, $9
+		)
+	`
+
+	result, err := r.DB.ExecContext(
+		ctx,
+		query,
+		user.ID,
+		user.FirstName,
+		user.LastName,
+		user.Username,
+		user.Password,
+		user.Email,
+		user.PhoneNumber,
+		user.CreatedAt,
+		user.UpdatedAt,
+	)
 	if err != nil {
-		return "", err
+		return fmt.Errorf(
+			"insert user: %w",
+			err,
+		)
 	}
-	rowAffected, err := result.RowsAffected()
+
+	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return "", err
-	}
-	if rowAffected != 1 {
-		return "", errors.New("user not created")
+		return fmt.Errorf(
+			"get create user rows affected: %w",
+			err,
+		)
 	}
 
-	return user.ID.String(), nil
-
-}
-func (r *UserRepo) GetUserByID(ctx context.Context, id string) (entity.User, error) {
-	var user entity.User
-	query := `Select * from users where id = $1;`
-
-	err := r.DB.QueryRowContext(ctx, query, id).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Username,
-		&user.Password, &user.Email, &user.PhoneNumber, &user.CreatedAt, &user.UpdatedAt)
-	if err != nil {
-		return entity.User{}, err
+	if rowsAffected != 1 {
+		return errors.New(
+			"user was not created",
+		)
 	}
-	return user, nil
-}
-func (r *UserRepo) GetUserByUsername(ctx context.Context, username string) (entity.User, error) {
-	var user entity.User
-	query := `Select * from users where username = $1;`
 
-	err := r.DB.QueryRowContext(ctx, query, username).Scan(&user.ID, &user.FirstName, &user.LastName, &user.Username,
-		&user.Password, &user.Email, &user.PhoneNumber, &user.CreatedAt, &user.UpdatedAt)
-	if err != nil {
-		return entity.User{}, err
-	}
-	return user, nil
-}
-func (r *UserRepo) UpdateUser(ctx context.Context, user entity.User) error {
-	// TODO update need to fix
-	query := `UPDATE users set first_name = $1, last_name = $2,username = $3 , password = $4,email = $5,
-                 phonenumber = $6, updated_at = $7 where id = $8;`
-	fmt.Println(query)
 	return nil
 }
 
-func (r *UserRepo) GetUsersByIDs(ctx context.Context, ids []string) ([]entity.User, error) {
-	query := `SELECT * from users where id = ANY($1::uuid[])`
-	rows, err := r.DB.QueryContext(ctx, query, pq.Array(ids))
+// ---------------------------------------------------------
+// Get User By ID
+// ---------------------------------------------------------
+
+//no usage for now delete if not necessary
+
+func (r *UserRepo) GetUserByID(ctx context.Context, id uuid.UUID) (entity.User, error) {
+
+	const query = `
+		SELECT
+			id,
+			first_name,
+			last_name,
+			username,
+			password,
+			email,
+			phone_number,
+			created_at,
+			updated_at
+		FROM users
+		WHERE id = $1
+	`
+
+	var user entity.User
+
+	err := r.DB.QueryRowContext(
+		ctx,
+		query,
+		id,
+	).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Username,
+		&user.Password,
+		&user.Email,
+		&user.PhoneNumber,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
 	if err != nil {
-		return nil, err
+		return entity.User{}, fmt.Errorf(
+			"get user by ID: %w",
+			err,
+		)
 	}
+
+	return user, nil
+}
+
+// ---------------------------------------------------------
+// Get User By Username
+// ---------------------------------------------------------
+
+func (r *UserRepo) GetUserByUsername(ctx context.Context, username string) (entity.User, error) {
+
+	const query = `
+		SELECT
+			id,
+			first_name,
+			last_name,
+			username,
+			password,
+			email,
+			phone_number,
+			created_at,
+			updated_at
+		FROM users
+		WHERE username = $1
+	`
+
+	var user entity.User
+
+	err := r.DB.QueryRowContext(
+		ctx,
+		query,
+		username,
+	).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Username,
+		&user.Password,
+		&user.Email,
+		&user.PhoneNumber,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		return entity.User{}, fmt.Errorf(
+			"get user by username: %w",
+			err,
+		)
+	}
+
+	return user, nil
+}
+
+// ---------------------------------------------------------
+// Update User
+// ---------------------------------------------------------
+
+func (r *UserRepo) UpdateUser(ctx context.Context, user entity.User) error {
+
+	const query = `
+		UPDATE users
+		SET
+			first_name = $1,
+			last_name = $2,
+			username = $3,
+			password = $4,
+			email = $5,
+			phone_number = $6,
+			updated_at = $7
+		WHERE id = $8
+	`
+
+	result, err := r.DB.ExecContext(
+		ctx,
+		query,
+		user.FirstName,
+		user.LastName,
+		user.Username,
+		user.Password,
+		user.Email,
+		user.PhoneNumber,
+		user.UpdatedAt,
+		user.ID,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"update user: %w",
+			err,
+		)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf(
+			"get update user rows affected: %w",
+			err,
+		)
+	}
+
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------
+// Get Multiple Users
+// ---------------------------------------------------------
+
+func (r *UserRepo) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]entity.User, error) {
+
+	if len(ids) == 0 {
+		return []entity.User{}, nil
+	}
+
+	const query = `
+		SELECT
+			id,
+			first_name,
+			last_name,
+			username,
+			password,
+			email,
+			phone_number,
+			created_at,
+			updated_at
+		FROM users
+		WHERE id = ANY($1::uuid[])
+	`
+
+	/*
+		Conversion is kept inside the Postgres adapter because
+		lib/pq handles []string arrays conveniently.
+	*/
+	idStrings := make(
+		[]string,
+		len(ids),
+	)
+
+	for i, id := range ids {
+		idStrings[i] = id.String()
+	}
+
+	rows, err := r.DB.QueryContext(
+		ctx,
+		query,
+		pq.Array(idStrings),
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"get users by IDs: %w",
+			err,
+		)
+	}
+
 	defer rows.Close()
-	users := make([]entity.User, 0, len(ids))
+
+	users := make(
+		[]entity.User,
+		0,
+		len(ids),
+	)
 
 	for rows.Next() {
 		var user entity.User
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&user.ID,
-			&user.Username,
 			&user.FirstName,
 			&user.LastName,
+			&user.Username,
+			&user.Password,
 			&user.Email,
 			&user.PhoneNumber,
-			&user.Password,
 			&user.CreatedAt,
 			&user.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
+		); err != nil {
+			return nil, fmt.Errorf(
+				"scan user: %w",
+				err,
+			)
 		}
 
 		users = append(users, user)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"iterate users: %w",
+			err,
+		)
 	}
 
 	return users, nil

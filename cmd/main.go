@@ -13,6 +13,10 @@ import (
 	GroupHandlers "github.com/amirjbr/shared-expense/internal/groups/app/handler"
 	GroupRoutes "github.com/amirjbr/shared-expense/internal/groups/app/routes"
 	GroupService "github.com/amirjbr/shared-expense/internal/groups/core/service"
+	LedgerRepo "github.com/amirjbr/shared-expense/internal/ledger/adapter/repository"
+	LedgerHandler "github.com/amirjbr/shared-expense/internal/ledger/app/handler"
+	LedgerRoutes "github.com/amirjbr/shared-expense/internal/ledger/app/routes"
+	LedgerService "github.com/amirjbr/shared-expense/internal/ledger/core/service"
 	"github.com/amirjbr/shared-expense/internal/platform/database"
 	"github.com/amirjbr/shared-expense/internal/platform/http"
 	"github.com/amirjbr/shared-expense/pkg/conv"
@@ -60,16 +64,27 @@ func main() {
 
 	//group module
 
-	groupRep, err := GroupRepo.NewGroupRepo(db)
+	groupRepo, err := GroupRepo.NewGroupRepo(db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	groupSvc, err := GroupService.NewGroupService(groupRep, userLookUpSvc, logg)
+	groupSvc, err := GroupService.NewGroupService(groupRepo, userLookUpSvc, logg)
+	groupFinder, err := GroupService.NewGroupLookup(groupRepo)
 	groupHandler := GroupHandlers.NewGroupHandler(groupSvc)
 	groupRoute := GroupRoutes.NewGroupRoutes(groupHandler, logg)
 
+	//ledger module
+
+	ledgerRepo, err := LedgerRepo.NewLedgerRepo(db)
+	if err != nil {
+		fmt.Println(err)
+	}
+	ledgerSvc, err := LedgerService.NewLedgerService(ledgerRepo, groupFinder, logg)
+	ledgerHandler := LedgerHandler.NewLedgerHandler(ledgerSvc)
+	ledgerRoute := LedgerRoutes.NewLedgerRoutes(ledgerHandler, logg)
+
 	server := http.NewServer("localhost:8080")
-	server.Register("api/v1/share_expense", userRoutes, groupRoute)
+	server.Register("api/v1/share_expense", userRoutes, groupRoute, ledgerRoute)
 
 	if err = server.Run(); err != nil {
 		log.Fatal(err)

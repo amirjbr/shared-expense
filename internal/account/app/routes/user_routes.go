@@ -24,5 +24,4 @@ func (r *UserRoutes) RegisterRoutes(group *gin.RouterGroup) {
 	group.Use(middlewares.RequestLoggerMiddleware(r.logger))
 	group.POST("/register", r.handler.RegisterHandler)
 	group.POST("/login", r.handler.LoginHandler)
-	group.Use()
 }

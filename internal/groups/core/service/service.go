@@ -3,21 +3,17 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
-	"github.com/amirjbr/shared-expense/internal/account/core/service"
-	"github.com/amirjbr/shared-expense/internal/groups/app/dto"
+	accountservice "github.com/amirjbr/shared-expense/internal/account/core/service"
 	"github.com/amirjbr/shared-expense/internal/groups/core/entity"
 	"github.com/amirjbr/shared-expense/internal/groups/core/port"
+	"github.com/amirjbr/shared-expense/internal/groups/core/service/command"
 	"github.com/google/uuid"
 )
-
-type CreateInvitationCommand struct {
-	Username        string
-	GroupID         uuid.UUID
-	InvitedByUserID uuid.UUID
-}
 
 type GroupService struct {
 	repo       port.GroupRepo
@@ -26,184 +22,416 @@ type GroupService struct {
 }
 
 func NewGroupService(repo port.GroupRepo, userFinder port.UserFinder, logger *slog.Logger) (*GroupService, error) {
+
 	if repo == nil {
-		return nil, errors.New("repo is nil")
+		return nil, errors.New("group repository is nil")
 	}
+
+	if userFinder == nil {
+		return nil, errors.New("user finder is nil")
+	}
+
 	if logger == nil {
 		return nil, errors.New("logger is nil")
 	}
 
 	return &GroupService{
 		repo:       repo,
-		logger:     logger,
 		userFinder: userFinder,
+		logger:     logger,
 	}, nil
-
 }
 
-func (s *GroupService) CreateGroup(ctx context.Context, request dto.CreateGroupRequest) (string, error) {
-	var group entity.Group
+// ---------------------------------------------------------
+// Create Group
+// ---------------------------------------------------------
 
-	//TODO add logger use case in service and repo layer
-	//id, ok := requestcontext.GetRequestIDFromContext(ctx)
-	//if !ok {
-	//	s.logger.Warn("Could not get request id from context in create group request")
-	//}
+func (s *GroupService) CreateGroup(ctx context.Context, cmd command.CreateGroupCommand) (uuid.UUID, error) {
 
-	group.Name = request.Name
-
-	parsedOwnerUUID, err := uuid.Parse(request.OwnerID)
-	if err != nil {
-		return "", errors.New("invalid owner uuid")
+	if cmd.OwnerID == uuid.Nil {
+		return uuid.Nil, errors.New("owner ID is required")
 	}
-	group.OwnerID = parsedOwnerUUID
 
-	uuidCreated, err := uuid.NewV6()
-	if err != nil {
-		return "", err
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" {
+		return uuid.Nil, errors.New("group name is required")
 	}
-	group.ID = uuidCreated
 
-	group.CreatedAt = time.Now()
-	group.UpdatedAt = time.Now()
+	now := time.Now().UTC()
 
-	return s.repo.CreateGroup(ctx, group)
+	group := entity.Group{
+		ID:        uuid.New(),
+		Name:      name,
+		OwnerID:   cmd.OwnerID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	if err := s.repo.CreateGroup(ctx, group); err != nil {
+		return uuid.Nil, fmt.Errorf(
+			"create group: %w",
+			err,
+		)
+	}
+
+	return group.ID, nil
 }
 
-func (s *GroupService) InviteMemberToGroup(ctx context.Context, groupInvitationCommand CreateInvitationCommand) error {
-	var groupInvitation entity.GroupInvitation
-	result, err := s.repo.GetGroupByID(ctx, groupInvitationCommand.GroupID.String())
-	if err == nil && result == nil {
-		return errors.New("group not found")
-	}
-	if err != nil {
-		return err
+// ---------------------------------------------------------
+// Invite Member
+// ---------------------------------------------------------
+
+func (s *GroupService) InviteMemberToGroup(ctx context.Context, cmd command.CreateInvitationCommand) error {
+
+	if cmd.GroupID == uuid.Nil {
+		return errors.New("group ID is required")
 	}
 
-	if result.OwnerID != groupInvitationCommand.InvitedByUserID {
-		return errors.New("the user is not the owner of the group")
+	if cmd.InvitedByUserID == uuid.Nil {
+		return errors.New("inviting user ID is required")
 	}
 
-	invitedUserId, err := s.userFinder.GetUserIDByUsername(ctx, groupInvitationCommand.Username)
-	if err != nil {
-		return err
+	username := strings.TrimSpace(cmd.Username)
+	if username == "" {
+		return errors.New("username is required")
 	}
 
-	isMember, err := s.repo.IsGroupMember(ctx, groupInvitationCommand.GroupID.String(), invitedUserId)
+	// Group must exist.
+	group, err := s.repo.GetGroupByID(
+		ctx,
+		cmd.GroupID,
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf(
+			"get group: %w",
+			err,
+		)
 	}
+
+	// Only group owner can invite.
+	if group.OwnerID != cmd.InvitedByUserID {
+		return errors.New(
+			"user is not the owner of the group",
+		)
+	}
+
+	// Ask Identity module for the user ID.
+	invitedUserID, err := s.userFinder.GetUserIDByUsername(
+		ctx,
+		username,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"find user by username: %w",
+			err,
+		)
+	}
+
+	if invitedUserID == uuid.Nil {
+		return errors.New("invalid invited user ID")
+	}
+
+	// User must not already belong to the group.
+	isMember, err := s.repo.IsGroupMember(
+		ctx,
+		cmd.GroupID,
+		invitedUserID,
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"check group membership: %w",
+			err,
+		)
+	}
+
 	if isMember {
-		return errors.New("user is already a member of the group")
+		return errors.New(
+			"user is already a member of the group",
+		)
 	}
 
-	groupInvitation.ID = uuid.New()
-	groupInvitation.CreatedAt = time.Now()
-
-	parseResult, err := uuid.Parse(invitedUserId)
+	// User must not already have a pending invitation.
+	hasPendingInvitation, err := s.repo.HasPendingInvitation(
+		ctx,
+		cmd.GroupID,
+		invitedUserID,
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf(
+			"check pending invitation: %w",
+			err,
+		)
 	}
 
-	//TODO for sure need to fix naming of the variables
+	if hasPendingInvitation {
+		return errors.New(
+			"a pending invitation already exists for this user and group",
+		)
+	}
 
-	groupInvitation.InvitedUserID = parseResult
+	now := time.Now().UTC()
 
-	groupInvitation.InvitedByUserID = groupInvitationCommand.InvitedByUserID
+	invitation := entity.GroupInvitation{
+		ID:              uuid.New(),
+		GroupID:         cmd.GroupID,
+		InvitedUserID:   invitedUserID,
+		InvitedByUserID: cmd.InvitedByUserID,
+		Status:          "pending",
+		CreatedAt:       now,
+	}
 
-	groupInvitation.Status = "pending"
+	if err := s.repo.CreateGroupInvitation(
+		ctx,
+		invitation,
+	); err != nil {
+		return fmt.Errorf(
+			"create group invitation: %w",
+			err,
+		)
+	}
 
-	groupInvitation.GroupID = groupInvitationCommand.GroupID
+	return nil
+}
 
-	isHaveInvitation, err := s.repo.IsHaveInvitation(ctx, groupInvitation.InvitedUserID.String(), groupInvitation.GroupID.String())
+// ---------------------------------------------------------
+// Accept Invitation
+// ---------------------------------------------------------
+
+func (s *GroupService) AcceptInvitation(
+	ctx context.Context,
+	invitationID uuid.UUID,
+	userID uuid.UUID,
+) error {
+
+	if invitationID == uuid.Nil {
+		return errors.New("invitation ID is required")
+	}
+
+	if userID == uuid.Nil {
+		return errors.New("user ID is required")
+	}
+
+	if err := s.repo.AcceptInvitation(
+		ctx,
+		invitationID,
+		userID,
+	); err != nil {
+		return fmt.Errorf(
+			"accept invitation: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------
+// Reject Invitation
+// ---------------------------------------------------------
+
+func (s *GroupService) RejectInvitation(
+	ctx context.Context,
+	invitationID uuid.UUID,
+	userID uuid.UUID,
+) error {
+
+	if invitationID == uuid.Nil {
+		return errors.New("invitation ID is required")
+	}
+
+	if userID == uuid.Nil {
+		return errors.New("user ID is required")
+	}
+
+	if err := s.repo.RejectInvitation(
+		ctx,
+		invitationID,
+		userID,
+	); err != nil {
+		return fmt.Errorf(
+			"reject invitation: %w",
+			err,
+		)
+	}
+
+	return nil
+}
+
+// ---------------------------------------------------------
+// Get Group By ID
+// ---------------------------------------------------------
+
+func (s *GroupService) GetGroupByID(
+	ctx context.Context,
+	groupID uuid.UUID,
+	userID uuid.UUID,
+) (entity.Group, error) {
+
+	if userID == uuid.Nil {
+		return entity.Group{}, errors.New(
+			"user ID is required",
+		)
+	}
+
+	if groupID == uuid.Nil {
+		return entity.Group{}, errors.New(
+			"group ID is required",
+		)
+	}
+
+	// User must belong to the group.
+	isMember, err := s.repo.IsGroupMember(
+		ctx,
+		groupID,
+		userID,
+	)
 	if err != nil {
-		return err
-	}
-	if isHaveInvitation {
-		return errors.New("the invitation already exist for this group and user")
-	}
-
-	return s.repo.CreateGroupInvitation(ctx, groupInvitation)
-
-}
-
-func (s *GroupService) AcceptInvitation(ctx context.Context, invitationID string, userID string) error {
-	// TODO complete the service and repo layer also reject in handler and also need refactoring accept handler
-
-	return s.repo.AcceptInvitation(ctx, invitationID, userID)
-}
-
-func (s *GroupService) RejectInvitation(ctx context.Context, invitationID string, userID string) error {
-	return s.repo.RejectInvitation(ctx, invitationID, userID)
-}
-
-// This function will return all the groups the authenticated user is the member of
-func (s *GroupService) GetGroupByID(ctx context.Context, groupID string, userID string) (*entity.Group, error) {
-
-	if userID == "" {
-		return nil, errors.New("invalid user.userID is empty")
-	}
-
-	if groupID == "" {
-		return nil, errors.New("invalid group. groupID is empty")
-	}
-
-	isGroupMember, err := s.repo.IsGroupMember(ctx, groupID, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !isGroupMember {
-		return nil, errors.New("user is not a member of the group")
-	}
-
-	group, err := s.repo.GetGroupByID(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	return group, nil
-}
-
-func (s *GroupService) GetPendingInvitations(ctx context.Context, userID string) ([]entity.GroupInvitation, error) {
-	if userID == "" {
-		return nil, errors.New("invalid user . userID is empty")
-	}
-
-	return s.repo.GetPendingInvitations(ctx, userID)
-
-}
-
-func (s *GroupService) GetAllGroupsOfUser(ctx context.Context, userID string) ([]entity.Group, error) {
-	if userID == "" {
-		return nil, errors.New("invalid user . userID is empty")
-	}
-
-	return s.repo.GetAllGroupsOfUser(ctx, userID)
-}
-
-func (s *GroupService) GetMembersOfGroup(ctx context.Context, userID string, groupID string) ([]service.UserSummary, error) {
-	if userID == "" {
-		return nil, errors.New("invalid user . userID is empty")
-	}
-	if groupID == "" {
-		return nil, errors.New("invalid group. groupID is empty")
-	}
-
-	isMember, err := s.repo.IsGroupMember(ctx, groupID, userID)
-	if err != nil {
-		return nil, err
+		return entity.Group{}, fmt.Errorf(
+			"check group membership: %w",
+			err,
+		)
 	}
 
 	if !isMember {
-		return nil, errors.New("user is not a member of the group")
+		return entity.Group{}, errors.New(
+			"user is not a member of the group",
+		)
 	}
 
-	listOfUserIDs, err := s.repo.GetMembersOfGroup(ctx, groupID)
+	group, err := s.repo.GetGroupByID(
+		ctx,
+		groupID,
+	)
 	if err != nil {
-		return nil, err
+		return entity.Group{}, fmt.Errorf(
+			"get group: %w",
+			err,
+		)
 	}
 
-	return s.userFinder.GetUsersByIDs(ctx, listOfUserIDs)
+	return group, nil
+}
 
-	// Call the identity service and ask user information from it
+// ---------------------------------------------------------
+// Get Pending Invitations
+// ---------------------------------------------------------
 
+func (s *GroupService) GetPendingInvitations(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]entity.GroupInvitation, error) {
+
+	if userID == uuid.Nil {
+		return nil, errors.New(
+			"user ID is required",
+		)
+	}
+
+	invitations, err := s.repo.GetPendingInvitations(
+		ctx,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"get pending invitations: %w",
+			err,
+		)
+	}
+
+	return invitations, nil
+}
+
+// ---------------------------------------------------------
+// Get All Groups Of User
+// ---------------------------------------------------------
+
+func (s *GroupService) GetAllGroupsOfUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]entity.Group, error) {
+
+	if userID == uuid.Nil {
+		return nil, errors.New(
+			"user ID is required",
+		)
+	}
+
+	groups, err := s.repo.GetAllGroupsOfUser(
+		ctx,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"get groups of user: %w",
+			err,
+		)
+	}
+
+	return groups, nil
+}
+
+// ---------------------------------------------------------
+// Get Members Of Group
+// ---------------------------------------------------------
+
+func (s *GroupService) GetMembersOfGroup(
+	ctx context.Context,
+	userID uuid.UUID,
+	groupID uuid.UUID,
+) ([]accountservice.UserSummary, error) {
+
+	if userID == uuid.Nil {
+		return nil, errors.New(
+			"user ID is required",
+		)
+	}
+
+	if groupID == uuid.Nil {
+		return nil, errors.New(
+			"group ID is required",
+		)
+	}
+
+	// Requesting user must belong to the group.
+	isMember, err := s.repo.IsGroupMember(
+		ctx,
+		groupID,
+		userID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"check group membership: %w",
+			err,
+		)
+	}
+
+	if !isMember {
+		return nil, errors.New(
+			"user is not a member of the group",
+		)
+	}
+
+	userIDs, err := s.repo.GetMembersOfGroup(
+		ctx,
+		groupID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"get group members: %w",
+			err,
+		)
+	}
+
+	users, err := s.userFinder.GetUsersByIDs(
+		ctx,
+		userIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"get member user information: %w",
+			err,
+		)
+	}
+
+	return users, nil
 }
