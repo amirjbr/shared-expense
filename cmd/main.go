@@ -13,6 +13,10 @@ import (
 	GroupHandlers "github.com/amirjbr/shared-expense/internal/groups/app/handler"
 	GroupRoutes "github.com/amirjbr/shared-expense/internal/groups/app/routes"
 	GroupService "github.com/amirjbr/shared-expense/internal/groups/core/service"
+	LedgerRepo "github.com/amirjbr/shared-expense/internal/ledger/adapter/repository"
+	LedgerHandler "github.com/amirjbr/shared-expense/internal/ledger/app/handler"
+	LedgerRoutes "github.com/amirjbr/shared-expense/internal/ledger/app/routes"
+	LedgerService "github.com/amirjbr/shared-expense/internal/ledger/core/service"
 	"github.com/amirjbr/shared-expense/internal/platform/database"
 	"github.com/amirjbr/shared-expense/internal/platform/http"
 	"github.com/amirjbr/shared-expense/pkg/conv"
@@ -21,6 +25,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// TODO separate technical erros with bussines errors
 func main() {
 	err := godotenv.Load("./.env")
 	if err != nil {
@@ -31,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	loggger := logger.NewLogger()
+	logg := logger.New()
 
 	db, err := database.InitDB(*conf)
 	if err != nil {
@@ -41,30 +46,45 @@ func main() {
 	mig := migrator.NewMigrator(db, "postgres")
 	mig.Up()
 
+	// user module
 	userRepo, err := UserRepo.NewUserRepo(db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	userSvc, err := UserService.NewUserService(userRepo, conv.ToBytes(conf.JwtSecret), loggger, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
+	userSvc, err := UserService.NewUserService(userRepo, conv.ToBytes(conf.JwtSecret), logg, conf.Auth.TokenExpiresMinute, conf.Auth.TokenRefreshMinute)
 	if err != nil {
 		fmt.Println(err)
 	}
 	userHandler := UserHandlers.NewUserHandler(userSvc)
-	userRoutes := UserRoutes.NewUserRoutes(userHandler)
-	userLookUpSvc, err := UserService.NewUserLookUp(userRepo)
+	userRoutes := UserRoutes.NewUserRoutes(userHandler, logg)
+	userLookUpSvc, err := UserService.NewUserLookUp(userRepo, logg)
 	if err != nil {
 		fmt.Println(err)
 	}
-	groupRep, err := GroupRepo.NewGroupRepo(db)
+
+	//group module
+
+	groupRepo, err := GroupRepo.NewGroupRepo(db)
 	if err != nil {
 		fmt.Println(err)
 	}
-	groupSvc, err := GroupService.NewGroupService(groupRep, userLookUpSvc, loggger)
+	groupSvc, err := GroupService.NewGroupService(groupRepo, userLookUpSvc, logg)
+	groupFinder, err := GroupService.NewGroupLookup(groupRepo)
 	groupHandler := GroupHandlers.NewGroupHandler(groupSvc)
-	groupRoute := GroupRoutes.NewGroupRoutes(groupHandler)
+	groupRoute := GroupRoutes.NewGroupRoutes(groupHandler, logg)
+
+	//ledger module
+
+	ledgerRepo, err := LedgerRepo.NewLedgerRepo(db)
+	if err != nil {
+		fmt.Println(err)
+	}
+	ledgerSvc, err := LedgerService.NewLedgerService(ledgerRepo, groupFinder, logg)
+	ledgerHandler := LedgerHandler.NewLedgerHandler(ledgerSvc)
+	ledgerRoute := LedgerRoutes.NewLedgerRoutes(ledgerHandler, logg)
 
 	server := http.NewServer("localhost:8080")
-	server.Register("api/v1/share_expense", userRoutes, groupRoute)
+	server.Register("api/v1/share_expense", userRoutes, groupRoute, ledgerRoute)
 
 	if err = server.Run(); err != nil {
 		log.Fatal(err)

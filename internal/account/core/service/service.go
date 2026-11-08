@@ -3,35 +3,48 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
 	"time"
 
-	"github.com/amirjbr/shared-expense/internal/account/app/dto"
 	"github.com/amirjbr/shared-expense/internal/account/core/entity"
 	"github.com/amirjbr/shared-expense/internal/account/core/port"
+	"github.com/amirjbr/shared-expense/internal/account/core/service/command"
 	"github.com/amirjbr/shared-expense/internal/account/utils"
 	"github.com/amirjbr/shared-expense/pkg/jwt"
-	"github.com/amirjbr/shared-expense/pkg/logger"
 	jwt2 "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
-//TODO need to work on errors
-
 type UserService struct {
 	repo                   port.UserRepo
-	logger                 logger.MyLogger
+	logger                 *slog.Logger
 	jwtSecret              []byte
 	tokenExpiration        uint
 	refreshTokenExpiration uint
 }
 
-func NewUserService(repo port.UserRepo, secret []byte, logger logger.MyLogger, tokenExpiration, refreshTokenExpiration uint) (*UserService, error) {
+type LoginResult struct {
+	AccessToken string
+	TokenType   string
+}
+
+func NewUserService(repo port.UserRepo, secret []byte, logger *slog.Logger,
+	tokenExpiration uint, refreshTokenExpiration uint) (*UserService, error) {
+
+	if repo == nil {
+		return nil, errors.New("user repository is required")
+	}
+
 	if logger == nil {
 		return nil, errors.New("logger is required")
 	}
-	if repo == nil {
-		return nil, errors.New("repo is required")
+
+	if len(secret) == 0 {
+		return nil, errors.New("JWT secret is required")
 	}
+
 	return &UserService{
 		repo:                   repo,
 		jwtSecret:              secret,
@@ -41,87 +54,165 @@ func NewUserService(repo port.UserRepo, secret []byte, logger logger.MyLogger, t
 	}, nil
 }
 
-func (s *UserService) Register(ctx context.Context, userReq dto.UserRegisterRequest) (string, error) {
+// ---------------------------------------------------------
+// Register
+// ---------------------------------------------------------
 
-	//TODO add validations and business logics
-	//TODO we need to store phone number in 1 way ( for example users input 09011619366 but we store +989011619366)
-	//TODO add more rules for password NOT IMPORTANT
-	var user entity.User
+func (s *UserService) Register(ctx context.Context, cmd command.RegisterUserCommand) (uuid.UUID, error) {
 
-	user.Username = userReq.Username
-
-	err := utils.ValidatePasswordWithFeedback(userReq.Password)
-	if err != nil {
-		return "", err
+	username := strings.TrimSpace(cmd.Username)
+	if username == "" {
+		return uuid.Nil, errors.New("username is required")
 	}
-	user.Password = userReq.Password
 
-	err = utils.ValidateEmail(userReq.Email)
-	if err != nil {
-		return "", errors.New("invalid email")
+	firstName := strings.TrimSpace(cmd.FirstName)
+	if firstName == "" {
+		return uuid.Nil, errors.New("first name is required")
 	}
-	user.Email = utils.LowerCaseEmail(userReq.Email)
 
-	user.PhoneNumber = userReq.PhoneNumber
-	user.FirstName = userReq.FirstName
-	user.LastName = userReq.LastName
-
-	uuidCreated, err := uuid.NewV6()
-	if err != nil {
-		return "", err
+	lastName := strings.TrimSpace(cmd.LastName)
+	if lastName == "" {
+		return uuid.Nil, errors.New("last name is required")
 	}
-	user.ID = uuidCreated
 
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
+	email := strings.TrimSpace(cmd.Email)
+	if email == "" {
+		return uuid.Nil, errors.New("email is required")
+	}
 
-	pass := utils.HashPassword(userReq.Password)
-	user.Password = pass
+	if strings.TrimSpace(cmd.Password) == "" {
+		return uuid.Nil, errors.New("password is required")
+	}
 
-	return s.repo.CreateUser(ctx, user)
+	if err := utils.ValidatePasswordWithFeedback(
+		cmd.Password,
+	); err != nil {
+		return uuid.Nil, err
+	}
+
+	if err := utils.ValidateEmail(email); err != nil {
+		return uuid.Nil, errors.New("invalid email")
+	}
+
+	normalizedEmail := utils.LowerCaseEmail(email)
+
+	/*
+		TODO:
+		Normalize phone number into one canonical format,
+		for example:
+		09011619366 → +989011619366
+	*/
+
+	now := time.Now().UTC()
+
+	user := entity.User{
+		ID:          uuid.New(),
+		Username:    username,
+		Password:    utils.HashPassword(cmd.Password),
+		Email:       normalizedEmail,
+		PhoneNumber: strings.TrimSpace(cmd.PhoneNumber),
+		FirstName:   firstName,
+		LastName:    lastName,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := s.repo.CreateUser(ctx, user); err != nil {
+		return uuid.Nil, fmt.Errorf(
+			"create user: %w",
+			err,
+		)
+	}
+
+	return user.ID, nil
 }
 
-func (s *UserService) GetUserByID(ctx context.Context, id string) (entity.User, error) {
-	if id == "" {
-		return entity.User{}, errors.New("user id is required")
-	}
-	return s.repo.GetUserByID(ctx, id)
-}
-func (s *UserService) Login(ctx context.Context, loginReq dto.UserLoginRequest) (dto.UserLoginResponse, error) {
-	if loginReq.Username == "" {
-		return dto.UserLoginResponse{}, errors.New("username is required")
-	}
-	if loginReq.Password == "" {
-		return dto.UserLoginResponse{}, errors.New("password is required")
+// ---------------------------------------------------------
+// Login
+// ---------------------------------------------------------
+
+func (s *UserService) Login(ctx context.Context, cmd command.LoginUserCommand) (LoginResult, error) {
+
+	username := strings.TrimSpace(cmd.Username)
+
+	if username == "" {
+		return LoginResult{}, errors.New(
+			"username is required",
+		)
 	}
 
-	user, err := s.repo.GetUserByUsername(ctx, loginReq.Username)
+	if cmd.Password == "" {
+		return LoginResult{}, errors.New(
+			"password is required",
+		)
+	}
+
+	user, err := s.repo.GetUserByUsername(ctx, username)
 	if err != nil {
-		return dto.UserLoginResponse{}, err
+		return LoginResult{}, fmt.Errorf(
+			"get user by username: %w",
+			err,
+		)
 	}
-	if !utils.CheckPassword(user.Password, loginReq.Password) {
-		return dto.UserLoginResponse{}, errors.New("invalid password")
+
+	if !utils.CheckPassword(user.Password, cmd.Password) {
+		return LoginResult{}, errors.New(
+			"invalid credentials",
+		)
 	}
+
+	now := time.Now().UTC()
 
 	claims := &jwt.UserClaims{
 		UserID: user.ID.String(),
+
 		RegisteredClaims: jwt2.RegisteredClaims{
-			Subject:   user.ID.String(),
-			IssuedAt:  jwt2.NewNumericDate(time.Now()),
-			ExpiresAt: jwt2.NewNumericDate(time.Now().Add(time.Duration(s.tokenExpiration) * time.Minute)),
+			Subject: user.ID.String(),
+
+			IssuedAt: jwt2.NewNumericDate(
+				now,
+			),
+
+			ExpiresAt: jwt2.NewNumericDate(
+				now.Add(
+					time.Duration(
+						s.tokenExpiration,
+					) * time.Minute,
+				),
+			),
 		},
 	}
 
 	token, err := jwt.CreateToken(s.jwtSecret, claims)
 	if err != nil {
-		return dto.UserLoginResponse{}, err
+		return LoginResult{}, fmt.Errorf(
+			"create access token: %w",
+			err,
+		)
 	}
-	return dto.UserLoginResponse{
+
+	return LoginResult{
 		AccessToken: token,
 		TokenType:   "Bearer",
 	}, nil
-
 }
+
+// ---------------------------------------------------------
+// Update User
+// ---------------------------------------------------------
+
 func (s *UserService) UpdateUser(ctx context.Context, user entity.User) error {
-	return s.repo.UpdateUser(ctx, user)
+
+	if user.ID == uuid.Nil {
+		return errors.New("user ID is required")
+	}
+
+	if err := s.repo.UpdateUser(ctx, user); err != nil {
+		return fmt.Errorf(
+			"update user: %w",
+			err,
+		)
+	}
+
+	return nil
 }

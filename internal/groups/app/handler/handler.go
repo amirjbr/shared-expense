@@ -5,6 +5,8 @@ import (
 
 	"github.com/amirjbr/shared-expense/internal/groups/app/dto"
 	"github.com/amirjbr/shared-expense/internal/groups/core/service"
+	"github.com/amirjbr/shared-expense/internal/groups/core/service/command"
+	"github.com/amirjbr/shared-expense/internal/platform/http/httpcontext"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -13,142 +15,321 @@ type GroupHandler struct {
 	service *service.GroupService
 }
 
-func NewGroupHandler(groupSvc *service.GroupService) *GroupHandler {
+func NewGroupHandler(
+	groupSvc *service.GroupService,
+) *GroupHandler {
 	return &GroupHandler{
 		service: groupSvc,
 	}
 }
 
-//TODO we can add parse uuid in auth middleware so before it comes to handler it will get checked
-//TODO so we dont need to parse everytime in our handlers
+// ---------------------------------------------------------
+// Create Group
+// ---------------------------------------------------------
 
 func (r *GroupHandler) CreateNewGroupHandler(c *gin.Context) {
-	var createGroupReq dto.CreateGroupRequest
+	var req dto.CreateGroupRequest
 
-	err := c.BindJSON(&createGroupReq)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid request body",
+		})
 		return
 	}
 
-	createGroupReq.OwnerID = c.Keys["user_id"].(string)
-
-	id, err := r.service.CreateGroup(c, createGroupReq)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	ownerID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
 	}
-	c.JSON(http.StatusOK, gin.H{"id": id})
+
+	cmd := command.CreateGroupCommand{
+		Name:    req.Name,
+		OwnerID: ownerID,
+	}
+
+	groupID, err := r.service.CreateGroup(
+		c.Request.Context(),
+		cmd,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to create group",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"id": groupID.String(),
+	})
 }
+
+// ---------------------------------------------------------
+// Invite Member
+// ---------------------------------------------------------
 
 func (r *GroupHandler) InviteMemberToGroup(c *gin.Context) {
 	var req dto.GroupInvitationRequest
-	var groupInvitationCommand service.CreateInvitationCommand
-	err := c.BindJSON(&req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
 
-	groupInvitationCommand.Username = req.Username
-
-	groupInvitationCommand.InvitedByUserID, err = uuid.Parse(c.Keys["user_id"].(string))
-	if err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "User ID should be a valid ID",
+			"message": "invalid request body",
 		})
 		return
 	}
 
-	groupInvitationCommand.GroupID, err = uuid.Parse(c.Param("group_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "Group ID is not a valid ID",
-		})
-		return
-	}
-
-	err = r.service.InviteMemberToGroup(c, groupInvitationCommand)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "user invite request sent successfully"})
-
-}
-
-func (r *GroupHandler) AcceptInvitation(c *gin.Context) {
-	invitationID, err := uuid.Parse(c.Param("invitation_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "invalid invitation id",
-		})
-		return
-	}
-
-	userID, err := uuid.Parse(c.Keys["user_id"].(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "invalid user id on jwt",
-		})
-		return
-	}
-	err = r.service.AcceptInvitation(c, invitationID.String(), userID.String())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "user accept invitation request was successfully"})
-
-}
-
-func (r *GroupHandler) RejectInvitation(c *gin.Context) {
-	invitationID, err := uuid.Parse(c.Param("invitation_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "invalid invitation id",
-		})
-		return
-	}
-
-	userID, err := uuid.Parse(c.Keys["user_id"].(string))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "invalid user id on jwt",
-		})
-		return
-	}
-
-	err = r.service.RejectInvitation(c, invitationID.String(), userID.String())
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "user reject invitation request was successfully"})
-
-}
-func (r *GroupHandler) GetGroupInformation(c *gin.Context) {
 	groupID, err := uuid.Parse(c.Param("group_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   err.Error(),
-			"message": "invalid group id",
+			"message": "invalid group ID",
 		})
 		return
 	}
 
-	group, err := r.service.GetGroupByID(c, groupID.String())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	invitedByUserID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"group": group})
+
+	cmd := command.CreateInvitationCommand{
+		Username:        req.Username,
+		InvitedByUserID: invitedByUserID,
+		GroupID:         groupID,
+	}
+
+	if err := r.service.InviteMemberToGroup(
+		c.Request.Context(),
+		cmd,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to send group invitation",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "group invitation created successfully",
+	})
+}
+
+// ---------------------------------------------------------
+// Accept Invitation
+// ---------------------------------------------------------
+
+func (r *GroupHandler) AcceptInvitation(c *gin.Context) {
+	invitationID, err := uuid.Parse(
+		c.Param("invitation_id"),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid invitation ID",
+		})
+		return
+	}
+
+	userID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
+	}
+
+	if err := r.service.AcceptInvitation(
+		c.Request.Context(),
+		invitationID,
+		userID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to accept invitation",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "invitation accepted successfully",
+	})
+}
+
+// ---------------------------------------------------------
+// Reject Invitation
+// ---------------------------------------------------------
+
+func (r *GroupHandler) RejectInvitation(c *gin.Context) {
+	invitationID, err := uuid.Parse(
+		c.Param("invitation_id"),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid invitation ID",
+		})
+		return
+	}
+
+	userID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
+	}
+
+	if err := r.service.RejectInvitation(
+		c.Request.Context(),
+		invitationID,
+		userID,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to reject invitation",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "invitation rejected successfully",
+	})
+}
+
+// ---------------------------------------------------------
+// Get Group Information
+// ---------------------------------------------------------
+
+func (r *GroupHandler) GetGroupInformation(c *gin.Context) {
+	groupID, err := uuid.Parse(
+		c.Param("group_id"),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid group ID",
+		})
+		return
+	}
+
+	userID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
+	}
+
+	group, err := r.service.GetGroupByID(
+		c.Request.Context(),
+		groupID,
+		userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to get group information",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"group": group,
+	})
+}
+
+// ---------------------------------------------------------
+// Get Pending Invitations
+// ---------------------------------------------------------
+
+func (r *GroupHandler) GetPendingInvitationOfUser(
+	c *gin.Context,
+) {
+	userID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
+	}
+
+	invitations, err := r.service.GetPendingInvitations(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to get pending invitations",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"invitations": invitations,
+	})
+}
+
+// ---------------------------------------------------------
+// Get Groups Of Authenticated User
+// ---------------------------------------------------------
+
+func (r *GroupHandler) GetGroupsOfAuthenticatedUser(
+	c *gin.Context,
+) {
+	userID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
+	}
+
+	groups, err := r.service.GetAllGroupsOfUser(
+		c.Request.Context(),
+		userID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to get groups",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"groups": groups,
+	})
+}
+
+// ---------------------------------------------------------
+// Get Members Of Group
+// ---------------------------------------------------------
+
+func (r *GroupHandler) GetMembersOfGroup(c *gin.Context) {
+	groupID, err := uuid.Parse(
+		c.Param("group_id"),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid group ID",
+		})
+		return
+	}
+
+	userID, ok := httpcontext.GetAuthenticatedUserID(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "authenticated user information is unavailable",
+		})
+		return
+	}
+
+	members, err := r.service.GetMembersOfGroup(
+		c.Request.Context(),
+		userID,
+		groupID,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to get group members",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"members": members,
+	})
 }
